@@ -1,14 +1,15 @@
 CC=gcc
 CFLAGS=-Wall -Wextra -pedantic -std=c99
 TARGET=server
+SRC=Http_server.c
 
 all: $(TARGET)
 
-$(TARGET): server.c
-	$(CC) $(CFLAGS) -o $(TARGET) server.c
+$(TARGET): $(SRC)
+	$(CC) $(CFLAGS) -o $(TARGET) $(SRC)
 
 run: all
-	./server 8080
+	./$(TARGET) 8080
 
 clean:
 	rm -f $(TARGET)
