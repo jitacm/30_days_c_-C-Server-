@@ -1,92 +1,131 @@
-C-Server: A Simple HTTP Server
---------------------
-A lightweight, single-threaded HTTP/1.0 server written in pure C from scratch. This project is a deep dive into low-level network programming with sockets, parsing the HTTP protocol, and handling file I/O in a Linux/macOS environment. The server is capable of serving static files (HTML, CSS, images) from a designated web root directory.
+# 🌐 Simple HTTP Server in C (WSL Debian)
 
-Features
----------------
-Pure C Implementation: Built with standard C libraries, with no external dependencies.
+This project implements a lightweight HTTP server written in the C programming language. It is designed to run inside the **Debian distribution on Windows Subsystem for Linux (WSL)**. The server listens for incoming HTTP GET requests and serves a static HTML file in response.
 
-HTTP/1.0 GET Requests: Parses and handles basic GET requests for static files.
+This setup is ideal for learning low-level network programming, exploring how web servers work, and building minimalistic development environments using native Linux tools on a Windows system.
 
-Static File Serving: Serves any file type from the ./www web root directory.
+---
 
-MIME Type Handling: Automatically determines the Content-Type for common web files (.html, .css, .js, .jpg, etc.).
+## 📚 Overview
 
-Error Handling: Responds with a 404 Not Found page for requests to non-existent files.
+This HTTP server demonstrates:
 
-Single-Threaded & Blocking: Uses a simple, single-threaded, blocking I/O model to handle one request at a time.
+- Basic usage of **sockets** in C.
 
-Getting Started
------------------
-To get the server running on your local machine, you will need a C compiler (like GCC) and the make utility, which are standard on most Linux and macOS systems.
+- Parsing and handling of **HTTP GET requests**.
 
-1. Clone the Repository
-First, clone this repository to your local machine.
+- Serving static HTML content to a browser.
 
-git clone <your-repository-url>
-cd <repository-directory>
+- Running C applications inside **Debian on WSL**, providing a Linux-like experience on Windows.
 
-2. Compile the Project
-A Makefile is included for easy compilation. Simply run the make command.
+---
 
-make
+## 🧱 Project Structure
 
-This will compile server.c and create an executable file named server in the root directory.
+```
+project-root/
+├── server.c         # Main source code implementing the HTTP server
+├── index.html       # HTML file served when a GET request is received
+└── README.md        # Documentation and usage instructions
+```
 
-3. Run the Server
-Launch the server and specify a port number. The standard port is 8080.
+---
 
-./server 8080
+## ⚙️ Requirements
 
-The server is now running and listening for connections on http://localhost:8080.
+To build and run this project, ensure you have the following installed:
 
-4. Test the Server
-Homepage: Open your web browser and navigate to http://localhost:8080. You should see the index.html page.
+- **Windows 10/11** with **WSL** enabled
 
-404 Page: Try to access a file that doesn't exist, like http://localhost:8080/nonexistent.html, to see the custom 404 error page.
+- **Debian distribution** installed via Microsoft Store or manually
 
-Project Structure
-The project has a simple and clear file structure.
+- Required development packages:
 
-.
-├── Makefile          # The build script for compiling the server.
-├── server            # The compiled executable (created by make).
-├── server.c          # The complete C source code for the server.
-└── www/              # The web root directory containing all static files.
-    ├── 404.html      # The page served for 404 errors.
-    ├── index.html    # The main homepage.
-    └── style.css     # The stylesheet for the HTML pages.
+```bash
+sudo apt update
+sudo apt install build-essential
+```
 
-How It Works
------------------
-The server follows a classic network programming workflow:
+(Optional but recommended):
 
-Socket Creation: Creates a TCP socket using socket().
+- **Visual Studio Code** with the **Remote - WSL** extension for editing and terminal integration
 
-Binding: Binds the socket to an IP address and port number using bind().
+---
 
-Listening: Puts the server socket in a listening state using listen(), ready to accept incoming connections.
+## 🛠️ Setup and Compilation
 
-Accepting: Enters an infinite loop, blocking on accept() until a client connects.
+1. **Open the Debian terminal** (WSL).
 
-Request Handling:
+2. **Navigate to the project directory**:
 
-Once a client connects, it reads the incoming HTTP request into a buffer.
+   ```bash
+   cd /path/to/your/project
+   ```
 
-It parses the request line to extract the URI (e.g., /index.html).
+3. **Compile the server using GCC**:
 
-It constructs the full file path relative to the ./www directory.
+   ```bash
+   gcc server.c -o server
+   ```
 
-Response Generation:
+4. **Run the server**:
 
-If the requested file exists, it constructs and sends a 200 OK HTTP response header, including the correct Content-Type and Content-Length.
+   ```bash
+   ./server
+   ```
 
-If the file does not exist, it sends a 404 Not Found response.
+   You should see a message indicating that the server is running on port 8080.
 
-It then reads the file's content and sends it as the response body.
+---
 
-Closing: The connection to the client is closed, and the server loops back to accept() to wait for the next connection.
+## 🌐 Accessing the Server
 
-License
--------------
-this is open source 
+Once the server is running, open your web browser and go to:
+
+```
+http://localhost:8080
+```
+
+You will see the contents of the `index.html` file displayed in the browser.
+
+---
+
+## 📖 How It Works
+
+- The server listens on **port 8080** using a TCP socket.
+
+- When a connection is received, it checks if the request is a **GET** method.
+
+- If valid, the contents of `index.html` are read and sent as the HTTP response.
+
+- The connection is then closed, and the server continues to wait for new requests.
+
+---
+
+## 💡 Educational Value
+
+This project serves as a great introduction to:
+
+- Networking and socket programming in C
+
+- HTTP protocol basics
+
+- Linux development environment inside Windows using WSL
+
+- Serving static files with custom server logic
+
+---
+
+## 📸 Example Output
+
+Once running, the server terminal might show logs like:
+
+```
+Server is listening on port 8080...
+Received request: GET / HTTP/1.1
+Sent index.html to client.
+```
+
+And the browser will display the content from `index.html`.
+
+---
