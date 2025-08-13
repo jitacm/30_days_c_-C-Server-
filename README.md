@@ -65,7 +65,7 @@ sudo apt install build-essential
 3. **Compile the server using GCC**:
 
    ```bash
-   gcc server.c -o server
+   gcc server.c -o server -lpthread
    ```
 
 4. **Run the server**:
@@ -129,3 +129,4 @@ Sent index.html to client.
 And the browser will display the content from `index.html`.
 
 ---
+
