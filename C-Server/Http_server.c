@@ -2,189 +2,240 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
 #include <arpa/inet.h>
-#include <fcntl.h>
-#include <signal.h>
+#include <pthread.h>
+#include <sys/stat.h>
+#include <time.h>
 
-#define DEFAULT_PORT 8080
-#define DEFAULT_WEBROOT "./www"
+#define PORT 8080
 #define BUFFER_SIZE 4096
+#define WEBROOT "./www"
+#define LOG_FILE "access.log"
+#define ERROR_LOG_FILE "error.log"
 
-int server_socket;  // For graceful shutdown
+// HTTP status codes
+#define HTTP_OK 200
+#define HTTP_NOT_FOUND 404
+#define HTTP_METHOD_NOT_ALLOWED 405
+#define HTTP_INTERNAL_SERVER_ERROR 500
 
-// Function to handle Ctrl+C (graceful shutdown)
-void handle_sigint(int sig) {
-    printf("\nShutting down server...\n");
-    close(server_socket);
-    exit(0);
-}
+// Structure for HTTP request data
+typedef struct {
+    char method[8];
+    char path[256];
+    char version[16];
+} HttpRequest;
 
-// Function to get MIME type of a file based on its extension
-const char* get_mime_type(const char* path) {
-    const char *dot = strrchr(path, '.');
-    if (dot) {
-        if (strcmp(dot, ".html") == 0) return "text/html";
-        if (strcmp(dot, ".css") == 0) return "text/css";
-        if (strcmp(dot, ".js") == 0) return "application/javascript";
-        if (strcmp(dot, ".jpg") == 0 || strcmp(dot, ".jpeg") == 0) return "image/jpeg";
-        if (strcmp(dot, ".png") == 0) return "image/png";
-        if (strcmp(dot, ".gif") == 0) return "image/gif";
-    }
+/**
+ * MIME type detection
+ */
+const char* get_mime_type(const char *path) {
+    const char *ext = strrchr(path, '.');
+    if (!ext) return "application/octet-stream";
+
+    if (strcmp(ext, ".html") == 0) return "text/html";
+    if (strcmp(ext, ".htm") == 0) return "text/html";
+    if (strcmp(ext, ".css") == 0) return "text/css";
+    if (strcmp(ext, ".js") == 0) return "application/javascript";
+    if (strcmp(ext, ".json") == 0) return "application/json";
+    if (strcmp(ext, ".jpg") == 0 || strcmp(ext, ".jpeg") == 0) return "image/jpeg";
+    if (strcmp(ext, ".png") == 0) return "image/png";
+    if (strcmp(ext, ".gif") == 0) return "image/gif";
+    if (strcmp(ext, ".svg") == 0) return "image/svg+xml";
+    if (strcmp(ext, ".ico") == 0) return "image/x-icon";
+    if (strcmp(ext, ".txt") == 0) return "text/plain";
+    if (strcmp(ext, ".pdf") == 0) return "application/pdf";
+    if (strcmp(ext, ".zip") == 0) return "application/zip";
+    if (strcmp(ext, ".mp3") == 0) return "audio/mpeg";
+    if (strcmp(ext, ".mp4") == 0) return "video/mp4";
+
     return "application/octet-stream";
 }
 
-// Sends an HTTP error response (e.g., 404 Not Found)
-void send_error_response(int client_socket, int status_code, const char* status_message, const char* file_path) {
-    char response_header[BUFFER_SIZE];
-    char file_buffer[BUFFER_SIZE];
-    int file_fd = open(file_path, O_RDONLY);
-    ssize_t bytes_read = 0;
+/**
+ * Logs an access request
+ */
+void log_request(const char *client_ip, const char *method, const char *path, int status_code) {
+    FILE *log_file = fopen(LOG_FILE, "a");
+    if (!log_file) return;
 
-    if (file_fd != -1) {
-        bytes_read = read(file_fd, file_buffer, BUFFER_SIZE - 1);
-        file_buffer[bytes_read] = '\0';
-        close(file_fd);
-    } else {
-        snprintf(file_buffer, BUFFER_SIZE, "<h1>%d %s</h1>", status_code, status_message);
-        bytes_read = strlen(file_buffer);
-    }
+    time_t now = time(NULL);
+    char *time_str = ctime(&now);
+    time_str[strlen(time_str)-1] = '\0'; // remove newline
 
-    snprintf(response_header, sizeof(response_header),
-             "HTTP/1.0 %d %s\r\n"
-             "Content-Type: text/html\r\n"
-             "Content-Length: %ld\r\n"
-             "Connection: close\r\n"
-             "Server: Simple-C-Server\r\n"
-             "\r\n",
-             status_code, status_message, bytes_read);
-
-    send(client_socket, response_header, strlen(response_header), 0);
-    send(client_socket, file_buffer, bytes_read, 0);
+    fprintf(log_file, "[%s] %s \"%s %s\" %d\n", time_str, client_ip, method, path, status_code);
+    fclose(log_file);
 }
 
-// Sends a successful HTTP response with the requested file
-void send_file_response(int client_socket, const char* file_path) {
-    char response_header[BUFFER_SIZE];
-    char buffer[BUFFER_SIZE];
+/**
+ * Logs an error message
+ */
+void log_error(const char *message) {
+    FILE *error_file = fopen(ERROR_LOG_FILE, "a");
+    if (!error_file) return;
 
-    int file_fd = open(file_path, O_RDONLY);
-    if (file_fd == -1) {
-        send_error_response(client_socket, 404, "Not Found", "./www/404.html");
+    time_t now = time(NULL);
+    char *time_str = ctime(&now);
+    time_str[strlen(time_str)-1] = '\0';
+
+    fprintf(error_file, "[%s] ERROR: %s\n", time_str, message);
+    fclose(error_file);
+}
+
+/**
+ * Parses an HTTP request string
+ */
+void parse_http_request(const char *request_str, HttpRequest *request) {
+    sscanf(request_str, "%s %s %s", request->method, request->path, request->version);
+}
+
+/**
+ * Sends an HTTP response header
+ */
+void send_response_header(int client_socket, int status_code, const char *mime_type, size_t content_length) {
+    char header[BUFFER_SIZE];
+    const char *status_text;
+
+    switch (status_code) {
+        case HTTP_OK: status_text = "200 OK"; break;
+        case HTTP_NOT_FOUND: status_text = "404 Not Found"; break;
+        case HTTP_METHOD_NOT_ALLOWED: status_text = "405 Method Not Allowed"; break;
+        case HTTP_INTERNAL_SERVER_ERROR: status_text = "500 Internal Server Error"; break;
+        default: status_text = "500 Internal Server Error"; break;
+    }
+
+    snprintf(header, sizeof(header),
+             "HTTP/1.1 %s\r\n"
+             "Content-Type: %s\r\n"
+             "Content-Length: %zu\r\n"
+             "Connection: close\r\n"
+             "\r\n",
+             status_text, mime_type, content_length);
+
+    send(client_socket, header, strlen(header), 0);
+}
+
+/**
+ * Sends a file to the client
+ */
+void send_file(int client_socket, const char *path, const char *client_ip, const char *method) {
+    FILE *file = fopen(path, "rb");
+    if (!file) {
+        const char *not_found = "<h1>404 Not Found</h1>";
+        send_response_header(client_socket, HTTP_NOT_FOUND, "text/html", strlen(not_found));
+        send(client_socket, not_found, strlen(not_found), 0);
+        log_request(client_ip, method, path, HTTP_NOT_FOUND);
+        log_error("File not found");
         return;
     }
 
-    // Get file size
-    off_t file_size = lseek(file_fd, 0, SEEK_END);
-    lseek(file_fd, 0, SEEK_SET);
+    struct stat st;
+    stat(path, &st);
+    const char *mime_type = get_mime_type(path);
 
-    const char* mime_type = get_mime_type(file_path);
+    send_response_header(client_socket, HTTP_OK, mime_type, st.st_size);
 
-    snprintf(response_header, sizeof(response_header),
-             "HTTP/1.0 200 OK\r\n"
-             "Content-Type: %s\r\n"
-             "Content-Length: %ld\r\n"
-             "Connection: close\r\n"
-             "Server: Simple-C-Server\r\n"
-             "\r\n",
-             mime_type, file_size);
-
-    send(client_socket, response_header, strlen(response_header), 0);
-
-    ssize_t bytes_read;
-    while ((bytes_read = read(file_fd, buffer, sizeof(buffer))) > 0) {
+    char buffer[BUFFER_SIZE];
+    size_t bytes_read;
+    while ((bytes_read = fread(buffer, 1, BUFFER_SIZE, file)) > 0) {
         send(client_socket, buffer, bytes_read, 0);
     }
 
-    close(file_fd);
+    fclose(file);
+    log_request(client_ip, method, path, HTTP_OK);
 }
 
-// Handles a single client connection
-void handle_client(int client_socket, const char* webroot) {
+/**
+ * Thread function to handle each client
+ */
+void* handle_client(void *arg) {
+    int client_socket = *(int*)arg;
+    free(arg);
+
+    struct sockaddr_in client_addr;
+    socklen_t addr_size = sizeof(client_addr);
+    getpeername(client_socket, (struct sockaddr*)&client_addr, &addr_size);
+    char client_ip[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, &client_addr.sin_addr, client_ip, sizeof(client_ip));
+
     char buffer[BUFFER_SIZE];
-    char file_path[BUFFER_SIZE];
+    int bytes_received = recv(client_socket, buffer, BUFFER_SIZE - 1, 0);
+    if (bytes_received > 0) {
+        buffer[bytes_received] = '\0';
 
-    ssize_t bytes_received = recv(client_socket, buffer, sizeof(buffer) - 1, 0);
-    if (bytes_received <= 0) {
-        close(client_socket);
-        return;
+        HttpRequest request;
+        parse_http_request(buffer, &request);
+
+        // Only allow GET method for now
+        if (strcmp(request.method, "GET") != 0) {
+            const char *method_not_allowed = "<h1>405 Method Not Allowed</h1>";
+            send_response_header(client_socket, HTTP_METHOD_NOT_ALLOWED, "text/html", strlen(method_not_allowed));
+            send(client_socket, method_not_allowed, strlen(method_not_allowed), 0);
+            log_request(client_ip, request.method, request.path, HTTP_METHOD_NOT_ALLOWED);
+            close(client_socket);
+            return NULL;
+        }
+
+        // If root requested, serve index.html
+        if (strcmp(request.path, "/") == 0) {
+            strcpy(request.path, "/index.html");
+        }
+
+        char full_path[512];
+        snprintf(full_path, sizeof(full_path), "%s%s", WEBROOT, request.path);
+        send_file(client_socket, full_path, client_ip, request.method);
     }
-    buffer[bytes_received] = '\0';
-
-    char method[16], uri[256];
-    sscanf(buffer, "%s %s", method, uri);
-
-    printf("[LOG] Request: %s %s\n", method, uri);
-
-    if (strcmp(method, "GET") != 0) {
-        send_error_response(client_socket, 405, "Method Not Allowed", "./www/404.html");
-        close(client_socket);
-        return;
-    }
-
-    if (strstr(uri, "..")) {
-        send_error_response(client_socket, 400, "Bad Request", "./www/404.html");
-        close(client_socket);
-        return;
-    }
-
-    if (strcmp(uri, "/") == 0) {
-        strcpy(uri, "/index.html");
-    }
-
-    snprintf(file_path, sizeof(file_path), "%s%s", webroot, uri);
-    send_file_response(client_socket, file_path);
 
     close(client_socket);
+    return NULL;
 }
 
-int main(int argc, char *argv[]) {
-    int port = (argc > 1) ? atoi(argv[1]) : DEFAULT_PORT;
-    const char* webroot = (argc > 2) ? argv[2] : DEFAULT_WEBROOT;
-
-    signal(SIGINT, handle_sigint);
-
+/**
+ * Main entry point
+ */
+int main() {
+    int server_fd, *client_socket;
     struct sockaddr_in server_addr, client_addr;
-    socklen_t client_addr_len = sizeof(client_addr);
+    socklen_t addr_len = sizeof(client_addr);
 
-    server_socket = socket(AF_INET, SOCK_STREAM, 0);
-    if (server_socket == -1) {
-        perror("socket");
+    server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_fd == -1) {
+        perror("Socket creation failed");
         exit(EXIT_FAILURE);
     }
-
-    int opt = 1;
-    setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = INADDR_ANY;
-    server_addr.sin_port = htons(port);
+    server_addr.sin_port = htons(PORT);
 
-    if (bind(server_socket, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
-        perror("bind");
+    if (bind(server_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+        perror("Bind failed");
+        close(server_fd);
         exit(EXIT_FAILURE);
     }
 
-    if (listen(server_socket, 10) < 0) {
-        perror("listen");
+    if (listen(server_fd, 10) < 0) {
+        perror("Listen failed");
+        close(server_fd);
         exit(EXIT_FAILURE);
     }
 
-    printf("Server running on http://localhost:%d\n", port);
-    printf("Serving files from: %s\n", webroot);
+    printf("Server running on port %d...\n", PORT);
 
     while (1) {
-        int client_socket = accept(server_socket, (struct sockaddr*)&client_addr, &client_addr_len);
-        if (client_socket < 0) {
-            perror("accept");
+        client_socket = malloc(sizeof(int));
+        *client_socket = accept(server_fd, (struct sockaddr*)&client_addr, &addr_len);
+        if (*client_socket < 0) {
+            perror("Accept failed");
+            free(client_socket);
             continue;
         }
 
-        printf("[INFO] Connection from %s:%d\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
-        handle_client(client_socket, webroot);
+        pthread_t thread_id;
+        pthread_create(&thread_id, NULL, handle_client, client_socket);
+        pthread_detach(thread_id);
     }
 
-    close(server_socket);
+    close(server_fd);
     return 0;
 }
