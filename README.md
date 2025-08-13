@@ -1,132 +1,152 @@
-# 🌐 Simple HTTP Server in C (WSL Debian)
+# C Multi-Threaded HTTP Server
 
-This project implements a lightweight HTTP server written in the C programming language. It is designed to run inside the **Debian distribution on Windows Subsystem for Linux (WSL)**. The server listens for incoming HTTP GET requests and serves a static HTML file in response.
-
-This setup is ideal for learning low-level network programming, exploring how web servers work, and building minimalistic development environments using native Linux tools on a Windows system.
+A robust and high-performance HTTP server implemented in **C**, designed to serve static files from the `www/` directory. The server leverages **multi-threading** to efficiently handle numerous concurrent client requests. It also includes a lightweight logging system and serves custom error pages for better user experience.
 
 ---
 
-## 📚 Overview
-
-This HTTP server demonstrates:
-
-- Basic usage of **sockets** in C.
-
-- Parsing and handling of **HTTP GET requests**.
-
-- Serving static HTML content to a browser.
-
-- Running C applications inside **Debian on WSL**, providing a Linux-like experience on Windows.
-
----
-
-## 🧱 Project Structure
+## 📂 Project Structure
 
 ```
-project-root/
-├── server.c         # Main source code implementing the HTTP server
-├── index.html       # HTML file served when a GET request is received
-└── README.md        # Documentation and usage instructions
+README.md              # Project documentation
+C-Server/
+│
+├── Makefile               # Build automation script
+├── Http_server.c          # Main HTTP server source code
+│
+└── www/                   # Static content served by the server
+    ├── index.html          # Homepage
+    ├── 404.html            # Custom 404 error page
+    ├── style.css           # Styling for the HTML pages
 ```
 
 ---
 
 ## ⚙️ Requirements
 
-To build and run this project, ensure you have the following installed:
+To compile and run this project, ensure you have the following installed:
 
-- **Windows 10/11** with **WSL** enabled
+* **GCC** or any C99-compliant compiler
+* **Make** utility
+* **POSIX-compliant environment** (Linux, macOS, or WSL on Windows)
 
-- **Debian distribution** installed via Microsoft Store or manually
-
-- Required development packages:
+Verify installations:
 
 ```bash
-sudo apt update
-sudo apt install build-essential
+gcc --version
+make --version
 ```
 
-(Optional but recommended):
+---
 
-- **Visual Studio Code** with the **Remote - WSL** extension for editing and terminal integration
+## 📥 Installation
+
+1. **Clone the Repository**
+
+```bash
+git clone https://github.com/yourusername/c-server.git
+cd c-server
+```
+
+2. **Build the Project**
+
+```bash
+make
+```
+
+This will produce an executable named `server` in the project root.
 
 ---
 
-## 🛠️ Setup and Compilation
+## ▶️ Running the Server
 
-1. **Open the Debian terminal** (WSL).
+**Default port (8080)**:
 
-2. **Navigate to the project directory**:
+```bash
+./server
+```
 
-   ```bash
-   cd /path/to/your/project
-   ```
+**Custom port**:
 
-3. **Compile the server using GCC**:
+```bash
+./server 5000
+```
 
-   ```bash
-   gcc server.c -o server -lpthread
-   ```
-
-4. **Run the server**:
-
-   ```bash
-   ./server
-   ```
-
-   You should see a message indicating that the server is running on port 8080.
-
----
-
-## 🌐 Accessing the Server
-
-Once the server is running, open your web browser and go to:
+Once running, open your web browser and visit:
 
 ```
 http://localhost:8080
 ```
 
-You will see the contents of the `index.html` file displayed in the browser.
+The server will continue running until stopped manually with `Ctrl + C`.
 
 ---
 
-## 📖 How It Works
+## 🌐 Serving Static Files
 
-- The server listens on **port 8080** using a TCP socket.
-
-- When a connection is received, it checks if the request is a **GET** method.
-
-- If valid, the contents of `index.html` are read and sent as the HTTP response.
-
-- The connection is then closed, and the server continues to wait for new requests.
-
----
-
-## 💡 Educational Value
-
-This project serves as a great introduction to:
-
-- Networking and socket programming in C
-
-- HTTP protocol basics
-
-- Linux development environment inside Windows using WSL
-
-- Serving static files with custom server logic
-
----
-
-## 📸 Example Output
-
-Once running, the server terminal might show logs like:
+Any file placed inside the `www/` directory will be accessible over HTTP. Example:
 
 ```
-Server is listening on port 8080...
-Received request: GET / HTTP/1.1
-Sent index.html to client.
+www/
+├── index.html
+├── style.css
 ```
 
-And the browser will display the content from `index.html`.
+Access them directly in your browser:
+
+```
+http://localhost:8080/index.html
+http://localhost:8080/style.css
+```
+
+The server automatically detects MIME types and serves files with the appropriate content type.
 
 ---
 
+## 📝 Logging System
+
+The server prints detailed logs to the terminal for:
+
+* Incoming client connections
+* Requested file paths
+* HTTP response codes (200 OK, 404 Not Found, etc.)
+* Thread creation and cleanup events
+
+Log persistence to files can be added in later development phases.
+
+---
+
+## 🛠 Technical Overview
+
+* **Language**: C (C99)
+* **Networking**: POSIX Sockets API
+* **Concurrency**: POSIX Threads (`pthread`)
+* **HTTP Method Supported**: GET
+* **HTTP Version**: 1.1
+
+**Request Handling Workflow**:
+
+1. Server binds to the specified port and listens for incoming connections.
+2. For each request, a new thread is spawned to handle it concurrently.
+3. The requested resource is searched inside the `www/` directory.
+4. If found, it is served with the correct headers; otherwise, a `404.html` page is returned.
+
+---
+
+## 🧹 Cleaning Up
+
+To remove all compiled binaries and start fresh:
+
+```bash
+make clean
+```
+
+This ensures your workspace remains tidy and prevents outdated builds from causing issues.
+
+---
+
+## 💡 Tips for Usage
+
+* Keep all public files inside `www/` to ensure security.
+* Avoid placing sensitive data in the served directory.
+* Use different ports if running multiple servers simultaneously.
+* Test on both localhost and other devices on the same network by using your machine's IP address.
