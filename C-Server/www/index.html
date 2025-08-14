@@ -3,15 +3,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Welcome!</title>
+    <title>C HTTP Server v2.0</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
-        <h1>Hello from my C Web Server!</h1>
-        <p>This page is being served by a simple HTTP server written entirely in C.</p>
-        <p>If you can see this, it means the server correctly parsed the HTTP GET request and served this <code>index.html</code> file.</p>
-        <img src="https://placehold.co/600x300/58a6ff/FFFFFF?text=C+Server+Image" alt="Placeholder Image">
+        <h1>🚀 C HTTP Server v2.0</h1>
+        <p>Welcome to the enhanced HTTP server with dynamic routing!</p>
+        
+        <h2>Available Endpoints</h2>
+        <div class="endpoints">
+            <a href="/time" class="endpoint-link">📅 Server Time</a>
+            <a href="/status" class="endpoint-link">📊 Server Status</a>
+            <a href="/echo" class="endpoint-link">📝 Echo Form (POST Demo)</a>
+        </div>
+        
+        <h2>Features</h2>
+        <ul style="text-align: left;">
+            <li>✅ Dynamic route handling</li>
+            <li>✅ Multiple HTTP methods (GET, POST, HEAD)</li>
+            <li>✅ Form data processing</li>
+            <li>✅ Server statistics tracking</li>
+            <li>✅ Multi-threaded request handling</li>
+            <li>✅ Static file serving</li>
+            <li>✅ Custom error pages</li>
+            <li>✅ Request logging</li>
+        </ul>
+        
+        <h2>Test with cURL</h2>
+        <div class="code-block">
+            <code># Test HEAD method<br>
+            curl -I http://localhost:8080/time<br><br>
+            # Test POST method<br>
+            curl -X POST -d "name=Test&message=Hello" http://localhost:8080/echo</code>
+        </div>
     </div>
 </body>
 </html>
